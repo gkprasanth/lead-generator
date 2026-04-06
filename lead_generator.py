@@ -41,24 +41,6 @@ NEGATIVE_DOMAINS = {
     "justdial.com",
 }
 
-SEED_SCHOOL_SITES = [
-    "https://www.dpsinternational.com",
-    "https://www.ois.edu.in",
-    "https://www.stonehill.in",
-    "https://www.tis.edu.my",
-    "https://www.harrowschoolonline.org",
-    "https://www.pathways.in",
-    "https://www.chirec.ac.in",
-    "https://www.thenewlearningsystem.com",
-    "https://www.inventureacademy.com",
-    "https://www.vasantvalley.org",
-    "https://www.greenwoodhigh.edu.in",
-    "https://www.uwcsea.edu.sg",
-    "https://www.nordangliaeducation.com",
-    "https://www.oakridge.in",
-    "https://www.ascendinternational.in",
-]
-
 KEYWORD_WEIGHTS = {
     "cbse": 15,
     "icse": 10,
@@ -252,9 +234,6 @@ def run(max_results: int, country_focus: str, extra_queries: list[str], min_scor
         seen.add(d)
         unique_urls.append(url)
 
-    if not unique_urls:
-        unique_urls = SEED_SCHOOL_SITES[:max_results]
-
     rows: list[Lead] = []
     for idx, url in enumerate(unique_urls[:max_results], start=1):
         processed = process_url(url, country_focus)
@@ -277,24 +256,6 @@ def run(max_results: int, country_focus: str, extra_queries: list[str], min_scor
                 notes="Auto-collected; verify decision-maker details manually.",
             )
         )
-
-    if not rows:
-        for idx, url in enumerate(unique_urls[:max_results], start=1):
-            school_name = domain_of(url).split(".")[0].replace("-", " ").title()
-            rows.append(
-                Lead(
-                    lead_id=idx,
-                    school_name=school_name,
-                    website=url,
-                    country_focus=country_focus,
-                    emails="",
-                    phones="",
-                    contact_page="",
-                    score=max(min_score, 35),
-                    matched_keywords="school, international, english",
-                    notes="Seed lead (network-restricted mode). Verify contact details manually.",
-                )
-            )
 
     deduped = dedupe(rows)
     for i, lead in enumerate(deduped, start=1):
@@ -348,6 +309,11 @@ def main() -> None:
 
     print(f"Leads generated: {len(leads)}")
     print(f"CSV saved to: {csv_path}")
+    if not leads:
+        print(
+            "No leads found from live scraping. Try increasing --max-results, "
+            "adding --extra-query, or running from a network with open web access."
+        )
     print("Tip: import CSV into Google Sheets via File > Import > Upload.")
 
 

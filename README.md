@@ -2,6 +2,8 @@
 
 This repo contains a practical lead-generation toolkit for finding schools that are likely to buy **VocaSpeak AI** (voice-first vocabulary and speaking improvement).
 
+You do **not** need to feed lead lists into it — the bot discovers leads from live web search results and then enriches/scored them.
+
 ## What this does
 
 - Searches the web for school websites using targeted B2B queries.
@@ -48,3 +50,10 @@ python3 lead_generator.py \
 - Respect each website’s terms of use and robots policies.
 - Verify consent and anti-spam rules before sending campaigns (GDPR/CAN-SPAM/local regulations).
 
+## Troubleshooting
+
+- If `Leads generated: 0`, the scraper likely could not access search/website pages from your current network.
+- Retry with:
+  - higher `--max-results`
+  - a few `--extra-query` values
+  - a network/VPS where outbound web requests are allowed
