@@ -15,7 +15,7 @@ You do **not** need to feed lead lists into it — the bot discovers leads from 
 ## Quick start
 
 ```bash
-python3 lead_generator.py --max-results 80 --country-focus "India"
+python3 lead_generator.py --max-results 120 --country-focus "UAE"
 ```
 
 Output appears in `output/leads.csv`.
@@ -31,16 +31,16 @@ Output appears in `output/leads.csv`.
 
 ```bash
 python3 lead_generator.py \
-  --max-results 100 \
-  --country-focus "India" \
-  --extra-query "ai centric school language lab" \
+  --max-results 150 \
+  --country-focus "UAE" \
+  --extra-query "english medium international school dubai admissions" \
   --min-score 35
 ```
 
 ### Flags
 
 - `--max-results`: Number of search results to process (default: `60`)
-- `--country-focus`: Country or region text to include in queries (default: `India`)
+- `--country-focus`: Country or region text to include in queries (default: `UAE`)
 - `--extra-query`: Additional custom query (can be repeated)
 - `--min-score`: Filter low-quality leads from export (default: `25`)
 
@@ -57,3 +57,11 @@ python3 lead_generator.py \
   - higher `--max-results`
   - a few `--extra-query` values
   - a network/VPS where outbound web requests are allowed
+
+## Quality filtering
+
+The scraper is tuned to reduce noisy results by:
+- Ignoring obvious blog/news/article URLs.
+- Keeping school-like pages (school/academy/K-12 signals).
+- Requiring country presence signals (e.g., UAE, Dubai, Abu Dhabi for `--country-focus UAE`).
+- Requiring English-teaching relevance signals (e.g., English, British curriculum, IB/Cambridge context).

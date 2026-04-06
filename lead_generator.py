@@ -41,6 +41,60 @@ NEGATIVE_DOMAINS = {
     "justdial.com",
 }
 
+COUNTRY_KEYWORDS = {
+    "india": ["india", "cbse", "icse", "new delhi", "mumbai", "bangalore", "hyderabad"],
+    "uae": [
+        "uae",
+        "united arab emirates",
+        "dubai",
+        "abu dhabi",
+        "sharjah",
+        "ajman",
+        "ras al khaimah",
+        "fujairah",
+        "umm al quwain",
+        "al ain",
+    ],
+}
+
+SCHOOL_SIGNALS = [
+    "school",
+    "international school",
+    "academy",
+    "k-12",
+    "k12",
+    "kg",
+    "primary school",
+    "secondary school",
+]
+
+BAD_PATH_SIGNALS = [
+    "/blog/",
+    "/news/",
+    "/article",
+    "/articles/",
+    "/trends/",
+    "/university",
+    "/college",
+    "/careers",
+]
+
+ASSET_EXTENSIONS = (
+    ".css",
+    ".js",
+    ".xml",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".svg",
+    ".webp",
+    ".ico",
+    ".pdf",
+    ".woff",
+    ".woff2",
+    ".ttf",
+)
+
 KEYWORD_WEIGHTS = {
     "cbse": 15,
     "icse": 10,
@@ -58,6 +112,13 @@ KEYWORD_WEIGHTS = {
     "vocabulary": 10,
     "english": 6,
     "school": 4,
+    "uae": 8,
+    "dubai": 8,
+    "abu dhabi": 8,
+    "united arab emirates": 10,
+    "english medium": 12,
+    "english curriculum": 10,
+    "british curriculum": 10,
 }
 
 
@@ -93,16 +154,52 @@ def domain_of(url: str) -> str:
 
 
 def build_queries(country_focus: str, extra_queries: list[str]) -> list[str]:
-    base = [
-        f"international schools {country_focus} language lab",
-        f"cbse schools {country_focus} spoken english program",
-        f"ib cambridge schools {country_focus} communication skills",
-        f"ai powered school {country_focus} innovation campus",
-        f"schools with language learning program {country_focus}",
-        "international school admission contact email",
-        "cbse school principal contact",
-    ]
+    cf = country_focus.strip()
+    if cf.lower() == "uae":
+        base = [
+            "international schools uae english medium",
+            "british curriculum schools dubai admissions",
+            "ib cambridge schools abu dhabi",
+            "k12 international school sharjah contact",
+            "uae international school principal email",
+        ]
+    else:
+        base = [
+            f"international schools {cf} language lab",
+            f"cbse schools {cf} spoken english program",
+            f"ib cambridge schools {cf} communication skills",
+            f"ai powered school {cf} innovation campus",
+            f"schools with language learning program {cf}",
+            "international school admission contact email",
+            "cbse school principal contact",
+        ]
     return base + extra_queries
+
+
+def is_likely_school_url(url: str) -> bool:
+    low = url.lower()
+    if any(sig in low for sig in BAD_PATH_SIGNALS):
+        return False
+    dom = domain_of(url)
+    if any(nd in dom for nd in NEGATIVE_DOMAINS):
+        return False
+    return True
+
+
+def is_html_page(url: str) -> bool:
+    path = urlparse(url).path.lower()
+    return not path.endswith(ASSET_EXTENSIONS)
+
+
+def contains_country_signal(text: str, country_focus: str) -> bool:
+    signals = COUNTRY_KEYWORDS.get(country_focus.lower(), [country_focus.lower()])
+    low = text.lower()
+    return any(sig in low for sig in signals)
+
+
+def is_school_content(text: str) -> bool:
+    low = text.lower()
+    return any(sig in low for sig in SCHOOL_SIGNALS)
 
 
 def search_duckduckgo(query: str, max_results: int) -> list[str]:
@@ -112,8 +209,7 @@ def search_duckduckgo(query: str, max_results: int) -> list[str]:
     for href in HREF_REGEX.findall(html):
         if not href.startswith("http"):
             continue
-        dom = domain_of(href)
-        if any(block in dom for block in NEGATIVE_DOMAINS):
+        if not is_likely_school_url(href):
             continue
         urls.append(href)
     deduped = []
@@ -149,6 +245,8 @@ def extract_links(html: str, base_url: str) -> list[str]:
 def find_contact_page(html: str, base_url: str) -> str:
     for link in extract_links(html, base_url):
         low = link.lower()
+        if not is_html_page(link):
+            continue
         if any(h in low for h in CONTACT_HINTS):
             return link
     return ""
@@ -158,7 +256,22 @@ def extract_contacts(text: str) -> tuple[list[str], list[str]]:
     emails = sorted({e.lower() for e in EMAIL_REGEX.findall(text)})
     phones = sorted({p.strip() for p in PHONE_REGEX.findall(text)})
     emails = [e for e in emails if not e.endswith((".png", ".jpg", ".jpeg"))]
-    return emails[:5], phones[:5]
+    emails = [
+        e
+        for e in emails
+        if "sentry" not in e and "wixpress" not in e and "example.com" not in e and "noreply" not in e
+    ]
+    cleaned_phones: list[str] = []
+    for p in phones:
+        digits = re.sub(r"\D", "", p)
+        if len(digits) < 8 or len(digits) > 15:
+            continue
+        if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", p):
+            continue
+        if re.search(r"\b20\d{2}\b", p) and len(digits) <= 10:
+            continue
+        cleaned_phones.append(p)
+    return emails[:5], cleaned_phones[:5]
 
 
 def score_lead(text: str) -> tuple[int, list[str]]:
@@ -179,7 +292,9 @@ def process_url(url: str, country_focus: str) -> tuple[str, str, str, str, int, 
         return None
 
     text = strip_tags(home_html)
-    if "school" not in text.lower():
+    if not is_school_content(text):
+        return None
+    if not contains_country_signal(text + " " + url, country_focus):
         return None
 
     school_name = extract_title(home_html, url)
@@ -194,6 +309,8 @@ def process_url(url: str, country_focus: str) -> tuple[str, str, str, str, int, 
 
     emails, phones = extract_contacts(combined)
     score, matched = score_lead(combined)
+    if "english" not in combined.lower():
+        return None
     return (
         school_name,
         ", ".join(emails),
@@ -286,7 +403,7 @@ def write_csv(leads: list[Lead], out_csv: Path) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate school leads for VocaSpeak AI")
     parser.add_argument("--max-results", type=int, default=60)
-    parser.add_argument("--country-focus", default="India")
+    parser.add_argument("--country-focus", default="UAE")
     parser.add_argument("--extra-query", action="append", default=[])
     parser.add_argument("--min-score", type=int, default=25)
     return parser.parse_args()
